@@ -1,2 +1,3 @@
-$valid = (terraform fmt && terraform validate -json | ConvertFrom-Json).valid
-if ($valid) { terraform apply -auto-approve }
+$output = (terraform fmt && terraform validate -json | ConvertFrom-Json)
+if ($output.valid) { terraform apply -auto-approve }
+else { Write-Output $output }

@@ -33,6 +33,11 @@ resource "aws_instance" "web_server" {
   vpc_security_group_ids = var.config["security_groups"]
   tags                   = var.config["tags"]
   key_name               = var.config["key_name"]
+  user_data              = <<-EOL
+  #! /bin/sh
+  sudo amazon-linux-extras enable nginx1 && sudo yum clean metadata
+  sudo yum install -y nginx && sudo systemctl enable --now nginx.service
+  EOL
 }
 
 output "public_dns" {
