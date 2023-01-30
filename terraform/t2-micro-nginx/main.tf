@@ -2,11 +2,10 @@ variable "config" {
   # Infrastructure configuration settings
   type = any
   default = {
-    "ami"             = "ami-06e85d4c3149db26a"
-    "instance_type"   = "t2.micro"
-    "region"          = "us-west-2"
-    "security_groups" = ["sg-0ae916d265255f73a", "sg-00a1b9c3dbec5ffc1"]
-    "key_name"        = "ec2"
+    "ami"           = "ami-06e85d4c3149db26a"
+    "instance_type" = "t2.micro"
+    "region"        = "us-west-2"
+    "key_name"      = "ec2"
     "tags" = {
       "Name" = "web-server"
     }
@@ -27,16 +26,49 @@ provider "aws" {
   region = var.config["region"]
 }
 
+resource "aws_security_group" "web_server" {
+  name        = "web_server"
+  description = "Allows HTTP/S and SSH traffic"
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 resource "aws_instance" "web_server" {
   ami                    = var.config["ami"]
   instance_type          = var.config["instance_type"]
-  vpc_security_group_ids = var.config["security_groups"]
+  vpc_security_group_ids = [aws_security_group.web_server.id]
   tags                   = var.config["tags"]
   key_name               = var.config["key_name"]
   user_data              = <<-EOL
   #! /bin/sh
-  sudo amazon-linux-extras enable nginx1 && sudo yum clean metadata
-  sudo yum install -y nginx && sudo systemctl enable --now nginx.service
+  sudo su - 
+  useradd z -g wheel
+  mkdir /home/z/.ssh
+  cat /home/ec2-user/.ssh/authorized_keys sudo >> /home/z/.ssh/authorized_keys
+  amazon-linux-extras enable nginx1 && yum clean metadata
+  yum install -y nginx && systemctl enable --now nginx.service
   EOL
 }
 
