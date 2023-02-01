@@ -19,7 +19,7 @@ variable "config" {
     "ami"           = "ami-06e85d4c3149db26a"
     "instance_type" = "t2.micro"
     "region"        = "us-west-2"
-    "key_name"      = "ec2"  
+    "key_name"      = "ec2"
     "tags" = {
       "Name" = "web-server-nginx"
     }
@@ -68,7 +68,8 @@ resource "aws_instance" "web_server" {
   mkdir /home/z/.ssh
   cat /home/ec2-user/.ssh/authorized_keys sudo >> /home/z/.ssh/authorized_keys
   amazon-linux-extras enable nginx1 && yum clean metadata
-  yum install -y nginx && systemctl enable --now nginx.service
+  yum install -y firewalld nginx && systemctl enable --now firewalld.service nginx.service
+  firewall-cmd --zone=public --add-service={http,https,ssh} --permanent && firewall-cmd --reload
   EOL
 }
 
