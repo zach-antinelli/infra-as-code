@@ -1,1 +1,1 @@
-Collection of my Infrastructure as Code config files
+My Infrastructure as Code config files
