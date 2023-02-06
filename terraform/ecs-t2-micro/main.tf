@@ -20,11 +20,7 @@ variable "config" {
     "instance_type" = "t2.micro"
     "region"        = "us-west-2"
     # Name of pubkey for SSH
-    "key_name"      = ""  
-    "tags" = {
-      # Instance name tag
-      "Name" = ""
-    }
+    "key_name"      = "ec2"  
   }
 }
 

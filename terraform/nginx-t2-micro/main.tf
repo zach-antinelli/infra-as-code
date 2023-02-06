@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 4.0"
     }
+    docker = {
+      source = "kreuzwerker/docker"
+      version = "~> 3.0"
+    }
   }
   required_version = ">= 1.2.0"
 }
@@ -19,19 +23,28 @@ variable "config" {
     "ami"           = "ami-06e85d4c3149db26a"
     "instance_type" = "t2.micro"
     "region"        = "us-west-2"
-    # Name of pubkey for SSH
-    "key_name"      = ""  
+    "key_name"      = "ec2"
     "tags" = {
-      # Instance name tag
-      "Name" = ""
+      "Name" = "web-server-nginx"
     }
   }
 }
 
-resource "aws_security_group" "sg" {
-  # Name of the security group
-  name        = ""
+resource "aws_security_group" "web_server" {
+  name        = "web_server"
   description = "Allow HTTP/S and SSH traffic"
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
   ingress {
     from_port   = 22
     to_port     = 22
@@ -49,13 +62,18 @@ resource "aws_security_group" "sg" {
 resource "aws_instance" "web_server" {
   ami                    = var.config["ami"]
   instance_type          = var.config["instance_type"]
-  vpc_security_group_ids = [aws_security_group.sg.id]
+  vpc_security_group_ids = [aws_security_group.web_server.id]
   tags                   = var.config["tags"]
   key_name               = var.config["key_name"]
-  # Fill in your script content below
   user_data              = <<-EOL
   #! /bin/sh
-  # 
+  sudo su - 
+  useradd z -g wheel && echo "z ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/90-cloud-init-users
+  mkdir /home/z/.ssh
+  cat /home/ec2-user/.ssh/authorized_keys sudo >> /home/z/.ssh/authorized_keys
+  amazon-linux-extras enable nginx1 && yum clean metadata
+  yum install -y firewalld nginx && systemctl enable --now firewalld.service nginx.service
+  firewall-cmd --zone=public --add-service={http,https,ssh} --permanent && firewall-cmd --reload
   EOL
 }
 

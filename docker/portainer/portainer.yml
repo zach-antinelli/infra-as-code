@@ -13,3 +13,5 @@ services:
     command:
       --sslcert /certs/docker.crt
       --sslkey /certs/docker.key
+volumes:
+  portainer:

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 4.16"
+      version = "~> 4.0"
     }
   }
   required_version = ">= 1.2.0"
@@ -19,9 +19,9 @@ variable "config" {
     "ami"           = "ami-06e85d4c3149db26a"
     "instance_type" = "t2.micro"
     "region"        = "us-west-2"
-    "key_name"      = "ec2"  
+    "key_name"      = "ec2"
     "tags" = {
-      "Name" = "web-server-nginx"
+      "Name" = "web-server-apache"
     }
   }
 }
@@ -67,8 +67,8 @@ resource "aws_instance" "web_server" {
   useradd z -g wheel && echo "z ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/90-cloud-init-users
   mkdir /home/z/.ssh
   cat /home/ec2-user/.ssh/authorized_keys sudo >> /home/z/.ssh/authorized_keys
-  amazon-linux-extras enable nginx1 && yum clean metadata
-  yum install -y nginx && systemctl enable --now nginx.service
+  yum install -y firewalld httpd && systemctl enable --now firewalld.service httpd.service
+  firewall-cmd --zone=public --add-service={http,https,ssh} --permanent && firewall-cmd --reload
   EOL
 }
 
