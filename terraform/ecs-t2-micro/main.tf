@@ -4,63 +4,111 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 4.0"
     }
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0"
+    }
   }
-  required_version = ">= 1.2.0"
 }
+
+variable "config" {
+  type = any
+  default = {
+    "region"            = "us-west-2"
+    "availability_zone" = "us-west-2a"
+  }
+}
+
+provider "docker" {}
 
 provider "aws" {
   region = var.config["region"]
 }
 
-variable "config" {
-  # Infrastructure configuration settings
-  type = any
-  default = {
-    "ami"           = "ami-06e85d4c3149db26a"
-    "instance_type" = "t2.micro"
-    "region"        = "us-west-2"
-    # Name of pubkey for SSH
-    "key_name"      = "ec2"  
-  }
+data "aws_ecr_repository" "ecr_repo" {
+  name = "docker_images"
 }
 
-resource "aws_security_group" "sg" {
-  # Name of the security group
-  name        = ""
-  description = "Allow HTTP/S and SSH traffic"
+resource "aws_security_group" "ecs_sg" {
+  name   = "ecs-security-group"
+  vpc_id = aws_vpc.vpc.id
+
   ingress {
-    from_port   = 22
-    to_port     = 22
     protocol    = "tcp"
+    from_port   = 80
+    to_port     = 80
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   egress {
+    protocol    = "-1"
     from_port   = 0
     to_port     = 0
-    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-resource "aws_instance" "web_server" {
-  ami                    = var.config["ami"]
-  instance_type          = var.config["instance_type"]
-  vpc_security_group_ids = [aws_security_group.sg.id]
-  tags                   = var.config["tags"]
-  key_name               = var.config["key_name"]
-  # Fill in your script content below
-  user_data              = <<-EOL
-  #! /bin/sh
-  # 
-  EOL
+resource "aws_ecs_cluster" "ecs_cluster" {
+  name = "ecs-cluster"
 }
 
-output "public_dns" {
-  description = "The public DNS name assigned to the instance. For EC2-VPC, this is only available if you've enabled DNS hostnames for your VPC"
-  value       = aws_instance.web_server.public_dns
+resource "aws_ecs_service" "ecs_service" {
+  name            = "ecs-service"
+  cluster         = aws_ecs_cluster.ecs_cluster.id
+  task_definition = aws_ecs_task_definition.ecs_task.arn
+  launch_type     = "FARGATE"
+  desired_count   = 1
+
+  network_configuration {
+    assign_public_ip = true
+    security_groups  = [aws_security_group.ecs_sg.id]
+    subnets          = [aws_subnet.public.id]
+  }
 }
 
-output "public_ip" {
-  description = "The public IP address assigned to the instance, if applicable. NOTE: If you are using an aws_eip with your instance, you should refer to the EIP's address directly and not use `public_ip` as this field will change after the EIP is attached"
-  value       = aws_instance.web_server.public_ip
+resource "aws_ecs_task_definition" "ecs_task" {
+  family                   = "ecs_task"
+  container_definitions    = <<DEFINITION
+  [
+    {
+      "name": "nginx",
+      "image": "${data.aws_ecr_repository.ecr_repo.repository_url}:nginx-ubuntu",
+      "essential": true,
+      "cpu": 256,
+      "memory": 512,
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "hostPort": 80
+        }
+      ]
+    }
+  ]
+  DEFINITION
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  memory                   = 512
+  cpu                      = 256
+  execution_role_arn       = aws_iam_role.ecsTaskExecutionRole.arn
+}
+
+data "aws_iam_policy_document" "ecs-assume-role-policy" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ecsTaskExecutionRole" {
+  name               = "ecsTaskExecutionRole"
+  assume_role_policy = data.aws_iam_policy_document.ecs-assume-role-policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "ecsTaskExecutionRole_policy" {
+  role       = aws_iam_role.ecsTaskExecutionRole.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
