@@ -1,0 +1,3 @@
+docker run -dp 80:80 \ 
+--name nginx-ubuntu \
+zachantinelli/nginx-ubuntu:latest

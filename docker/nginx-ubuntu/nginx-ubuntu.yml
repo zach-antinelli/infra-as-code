@@ -1,0 +1,7 @@
+services:
+  nginx-ubuntu:
+    image: zachantinelli/nginx-ubuntu:latest
+    container_name: nginx-ubuntu
+    restart: always
+    ports:
+      - 80:80
